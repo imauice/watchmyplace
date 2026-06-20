@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import 'services/backend_api.dart';
 import 'services/notification_service.dart';
 import 'ui/app_pages.dart';
+import 'ui/pin_place_flow.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -71,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isRegistered = false;
   bool _isSending = false;
   bool _showPinnedPlaces = false;
+  bool _isPinningPlace = false;
 
   @override
   void initState() {
@@ -182,13 +184,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPinningPlace) {
+      return PinPlaceFlow(
+        onCancel: () => setState(() => _isPinningPlace = false),
+        onSaved: () {
+          setState(() {
+            _isPinningPlace = false;
+            _showPinnedPlaces = true;
+          });
+        },
+      );
+    }
+
     final pages = [
       PlacesPage(
         isReady: _isRegistered,
         hasPinnedPlaces: _showPinnedPlaces,
         onOpenAlerts: () => setState(() => _selectedIndex = 1),
         onOpenSettings: () => setState(() => _selectedIndex = 2),
-        onAddPlace: () => setState(() => _showPinnedPlaces = true),
+        onAddPlace: () => setState(() => _isPinningPlace = true),
         onWatchGuide: () => _comingSoon('คู่มือใช้งานกำลังจัดทำ'),
       ),
       const AlertsPage(),
