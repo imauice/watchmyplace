@@ -8,13 +8,16 @@ void main() {
       const WatchMyPlaceApp(
         home: Scaffold(
           body: Column(
-            children: [Text('WatchMyPlace'), Text('พร้อมเฝ้าสถานที่ของคุณ')],
+            children: [
+              Text('WatchMyPlace'),
+              Text('ปักหมุดไว้ ที่เหลือเราจะเฝ้าให้'),
+            ],
           ),
         ),
       ),
     );
 
     expect(find.text('WatchMyPlace'), findsOneWidget);
-    expect(find.text('พร้อมเฝ้าสถานที่ของคุณ'), findsOneWidget);
+    expect(find.text('ปักหมุดไว้ ที่เหลือเราจะเฝ้าให้'), findsOneWidget);
   });
 }

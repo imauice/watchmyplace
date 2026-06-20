@@ -17,9 +17,7 @@ class NotificationService {
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
-
     await _notifications.initialize(settings: settings);
-
     await _notifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -29,7 +27,6 @@ class NotificationService {
 
   Future<void> showRemoteMessage(RemoteMessage message) async {
     final notification = message.notification;
-
     await _notifications.show(
       id: message.messageId?.hashCode ?? DateTime.now().hashCode,
       title: notification?.title ?? 'WatchMyPlace',
