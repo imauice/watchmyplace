@@ -43,6 +43,7 @@ class PlacesPage extends StatelessWidget {
   const PlacesPage({
     super.key,
     required this.isReady,
+    required this.hasPinnedPlaces,
     required this.onOpenAlerts,
     required this.onOpenSettings,
     required this.onAddPlace,
@@ -50,6 +51,7 @@ class PlacesPage extends StatelessWidget {
   });
 
   final bool isReady;
+  final bool hasPinnedPlaces;
   final VoidCallback onOpenAlerts;
   final VoidCallback onOpenSettings;
   final VoidCallback onAddPlace;
@@ -57,6 +59,28 @@ class PlacesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (hasPinnedPlaces) {
+      return SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _HomeHeader(
+                onOpenAlerts: onOpenAlerts,
+                onOpenSettings: onOpenSettings,
+              ),
+              const SizedBox(height: 15),
+              _ReadyBanner(isReady: isReady),
+              const SizedBox(height: 22),
+              _PinnedPlacesSection(onAddPlace: onAddPlace),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
@@ -438,6 +462,301 @@ class _PopularPlacesCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PinnedPlacesSection extends StatelessWidget {
+  const _PinnedPlacesSection({required this.onAddPlace});
+
+  final VoidCallback onAddPlace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'สถานที่ของคุณ',
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineSmall?.copyWith(fontSize: 22),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                foregroundColor: muted,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 9,
+                ),
+                side: const BorderSide(color: line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('จัดการ'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const _PlaceCard(
+          name: 'โรงเรียนสาริต',
+          location: 'อ.เมืองเชียงใหม่',
+          imageAsset: 'assets/images/places/school.png',
+          updatedAt: '08:30',
+        ),
+        const SizedBox(height: 12),
+        const _PlaceCard(
+          name: 'บ้าน',
+          location: 'อ.เมืองเชียงใหม่',
+          imageAsset: 'assets/images/places/home.png',
+          updatedAt: '07:45',
+        ),
+        const SizedBox(height: 12),
+        const _PlaceCard(
+          name: 'ที่ทำงาน',
+          location: 'อ.เมืองเชียงใหม่',
+          imageAsset: 'assets/images/places/office.png',
+          updatedAt: '06:50',
+          warning: 'ฝนตกหนักในพื้นที่ใกล้เคียง',
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: onAddPlace,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ink,
+            minimumSize: const Size.fromHeight(62),
+            side: const BorderSide(color: Color(0xFFD4DADF)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: brightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+          label: const Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Text(
+                'ปักหมุดสถานที่ใหม่',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlaceCard extends StatelessWidget {
+  const _PlaceCard({
+    required this.name,
+    required this.location,
+    required this.imageAsset,
+    required this.updatedAt,
+    this.warning,
+  });
+
+  final String name;
+  final String location;
+  final String imageAsset;
+  final String updatedAt;
+  final String? warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasWarning = warning != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(0, 14, 14, 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFEDF0EF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x11000000),
+            blurRadius: 12,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: hasWarning ? Colors.orange : brightGreen,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 76,
+              height: 96,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: Image.asset(imageAsset, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            color: ink,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _StatusPill(warning: hasWarning),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, color: muted),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 17,
+                        color: muted,
+                      ),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          location,
+                          style: const TextStyle(color: muted, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 11),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _RiskItem(Icons.thunderstorm_outlined, 'ฝนหนัก'),
+                      _RiskItem(Icons.waves_rounded, 'น้ำท่วม'),
+                      _RiskItem(Icons.blur_on_rounded, 'PM2.5'),
+                      _RiskItem(Icons.campaign_outlined, 'ประกาศ'),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (hasWarning)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF5DF),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        warning!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFB87900),
+                          fontSize: 11,
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'อัปเดตล่าสุด $updatedAt',
+                        style: const TextStyle(color: muted, fontSize: 11),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.warning});
+
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = warning ? Colors.orange : brightGreen;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            warning ? Icons.warning_rounded : Icons.circle,
+            size: warning ? 15 : 10,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            warning ? 'เฝ้าระวัง' : 'ปกติ',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskItem extends StatelessWidget {
+  const _RiskItem(this.icon, this.label);
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 19, color: brightGreen),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(color: muted, fontSize: 9.5)),
+      ],
     );
   }
 }

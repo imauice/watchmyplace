@@ -70,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   bool _isRegistered = false;
   bool _isSending = false;
+  bool _showPinnedPlaces = false;
 
   @override
   void initState() {
@@ -184,9 +185,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final pages = [
       PlacesPage(
         isReady: _isRegistered,
+        hasPinnedPlaces: _showPinnedPlaces,
         onOpenAlerts: () => setState(() => _selectedIndex = 1),
         onOpenSettings: () => setState(() => _selectedIndex = 2),
-        onAddPlace: () => _comingSoon('ฟีเจอร์ปักหมุดสถานที่จะมาในขั้นถัดไป'),
+        onAddPlace: () => setState(() => _showPinnedPlaces = true),
         onWatchGuide: () => _comingSoon('คู่มือใช้งานกำลังจัดทำ'),
       ),
       const AlertsPage(),
@@ -218,8 +220,14 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Places',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_none_rounded),
-            selectedIcon: Icon(Icons.notifications_rounded),
+            icon: Badge(
+              label: Text('2'),
+              child: Icon(Icons.notifications_none_rounded),
+            ),
+            selectedIcon: Badge(
+              label: Text('2'),
+              child: Icon(Icons.notifications_rounded),
+            ),
             label: 'Alerts',
           ),
           NavigationDestination(
