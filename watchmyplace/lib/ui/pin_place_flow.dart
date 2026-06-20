@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'app_pages.dart';
 
@@ -23,6 +25,10 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
   int _step = 0;
   int _selectedType = 1;
   double _radius = 500;
+  GoogleMapController? _mapController;
+  LatLng _selectedPosition = const LatLng(18.7883, 98.9853);
+  bool _locationGranted = false;
+  String? _locationError;
   final Set<String> _watchTopics = {
     'ฝนตกหนัก',
     'น้ำท่วม',
@@ -53,6 +59,12 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadCurrentLocation();
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _addressController.dispose();
@@ -71,6 +83,45 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
       setState(() => _step++);
     } else {
       widget.onSaved();
+    }
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted) {
+          setState(() => _locationError = 'กรุณาเปิดบริการตำแหน่งบนอุปกรณ์');
+        }
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          setState(() => _locationError = 'ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง');
+        }
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      final current = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+      setState(() {
+        _selectedPosition = current;
+        _locationGranted = true;
+        _locationError = null;
+      });
+      await _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(current, 15.5),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _locationError = 'อ่านตำแหน่งไม่สำเร็จ');
+      }
     }
   }
 
@@ -119,6 +170,16 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
                   ),
                   _LocationStep(
                     radius: _radius,
+                    selectedPosition: _selectedPosition,
+                    locationGranted: _locationGranted,
+                    locationError: _locationError,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                    },
+                    onPositionChanged: (position) {
+                      setState(() => _selectedPosition = position);
+                    },
+                    onMyLocation: _loadCurrentLocation,
                     onRadiusChanged: (value) {
                       setState(() => _radius = value);
                     },
@@ -493,16 +554,63 @@ class _TypeTile extends StatelessWidget {
 }
 
 class _LocationStep extends StatelessWidget {
-  const _LocationStep({required this.radius, required this.onRadiusChanged});
+  const _LocationStep({
+    required this.radius,
+    required this.selectedPosition,
+    required this.locationGranted,
+    required this.locationError,
+    required this.onMapCreated,
+    required this.onPositionChanged,
+    required this.onMyLocation,
+    required this.onRadiusChanged,
+  });
 
   final double radius;
+  final LatLng selectedPosition;
+  final bool locationGranted;
+  final String? locationError;
+  final ValueChanged<GoogleMapController> onMapCreated;
+  final ValueChanged<LatLng> onPositionChanged;
+  final VoidCallback onMyLocation;
   final ValueChanged<double> onRadiusChanged;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const Positioned.fill(child: CustomPaint(painter: _MapPainter())),
+        Positioned.fill(
+          child: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: selectedPosition,
+              zoom: 15.5,
+            ),
+            onMapCreated: onMapCreated,
+            onTap: onPositionChanged,
+            mapToolbarEnabled: false,
+            zoomControlsEnabled: false,
+            compassEnabled: false,
+            myLocationEnabled: locationGranted,
+            myLocationButtonEnabled: false,
+            markers: {
+              Marker(
+                markerId: const MarkerId('selected-place'),
+                position: selectedPosition,
+                draggable: true,
+                onDragEnd: onPositionChanged,
+              ),
+            },
+            circles: {
+              Circle(
+                circleId: const CircleId('watch-radius'),
+                center: selectedPosition,
+                radius: radius,
+                fillColor: brightGreen.withValues(alpha: .14),
+                strokeColor: brightGreen,
+                strokeWidth: 2,
+              ),
+            },
+          ),
+        ),
         Positioned(
           top: 12,
           left: 18,
@@ -516,17 +624,20 @@ class _LocationStep extends StatelessWidget {
                 BoxShadow(color: Color(0x19000000), blurRadius: 12),
               ],
             ),
-            child: const TextField(
+            child: TextField(
+              readOnly: true,
               decoration: InputDecoration(
                 border: InputBorder.none,
-                icon: Icon(Icons.search, color: muted),
-                hintText: 'ค้นหาสถานที่, ที่อยู่ หรือพิกัด',
-                suffixIcon: Icon(Icons.my_location_rounded, color: ink),
+                icon: const Icon(Icons.touch_app_outlined, color: muted),
+                hintText: 'แตะบนแผนที่เพื่อเลือกตำแหน่ง',
+                suffixIcon: IconButton(
+                  onPressed: onMyLocation,
+                  icon: const Icon(Icons.my_location_rounded, color: ink),
+                ),
               ),
             ),
           ),
         ),
-        const Center(child: _MapPinArea()),
         Positioned(
           left: 18,
           right: 18,
@@ -577,26 +688,36 @@ class _LocationStep extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: line),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.location_on_rounded, color: brightGreen),
-                    SizedBox(width: 10),
+                    const Icon(Icons.location_on_rounded, color: brightGreen),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'ตำแหน่งที่เลือก',
                             style: TextStyle(fontWeight: FontWeight.w700),
                           ),
                           Text(
-                            'ถ.สุเทพ ต.สุเทพ อ.เมืองเชียงใหม่',
-                            style: TextStyle(color: muted, fontSize: 12),
+                            locationError ??
+                                '${selectedPosition.latitude.toStringAsFixed(6)}, '
+                                    '${selectedPosition.longitude.toStringAsFixed(6)}',
+                            style: TextStyle(
+                              color: locationError == null
+                                  ? muted
+                                  : Colors.orange,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Icon(Icons.edit_rounded, color: ink),
+                    IconButton(
+                      onPressed: onMyLocation,
+                      icon: const Icon(Icons.my_location_rounded, color: ink),
+                    ),
                   ],
                 ),
               ),
@@ -606,72 +727,6 @@ class _LocationStep extends StatelessWidget {
       ],
     );
   }
-}
-
-class _MapPinArea extends StatelessWidget {
-  const _MapPinArea();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 190,
-      height: 190,
-      decoration: BoxDecoration(
-        color: brightGreen.withValues(alpha: .12),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: brightGreen,
-          width: 1.5,
-          strokeAlign: BorderSide.strokeAlignInside,
-        ),
-      ),
-      child: const Icon(Icons.location_on_rounded, color: green, size: 66),
-    );
-  }
-}
-
-class _MapPainter extends CustomPainter {
-  const _MapPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawColor(const Color(0xFFF3F0E9), BlendMode.src);
-    final road = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 9
-      ..style = PaintingStyle.stroke;
-    final minor = Paint()
-      ..color = const Color(0xFFDAD8D2)
-      ..strokeWidth = 1.5;
-    for (var i = -2; i < 8; i++) {
-      canvas.drawLine(
-        Offset(i * 70.0, 0),
-        Offset(i * 70.0 + 320, size.height),
-        road,
-      );
-      canvas.drawLine(
-        Offset(0, i * 65.0),
-        Offset(size.width, i * 65.0 + 180),
-        minor,
-      );
-    }
-    final river = Paint()
-      ..color = const Color(0xFF8DD0F4)
-      ..strokeWidth = 22
-      ..style = PaintingStyle.stroke;
-    final riverPath = Path()
-      ..moveTo(size.width * .86, 0)
-      ..quadraticBezierTo(
-        size.width * .72,
-        size.height * .5,
-        size.width * .9,
-        size.height,
-      );
-    canvas.drawPath(riverPath, river);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _WatchSettingsStep extends StatelessWidget {
