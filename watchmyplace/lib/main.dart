@@ -1,122 +1,341 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-void main() {
-  runApp(const MyApp());
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+
+import 'services/backend_api.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // This widget is the root of your application.
+  runApp(const WatchMyPlaceApp());
+}
+
+class WatchMyPlaceApp extends StatelessWidget {
+  const WatchMyPlaceApp({super.key, this.home});
+
+  final Widget? home;
+
   @override
   Widget build(BuildContext context) {
+    const green = Color(0xFF356859);
+
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      title: 'WatchMyPlace',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: green),
+        scaffoldBackgroundColor: const Color(0xFFF4F7F3),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: home ?? const HomeScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _HomeScreenState extends State<HomeScreen> {
+  final BackendApi _backend = BackendApi();
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  StreamSubscription<String>? _tokenSubscription;
+  StreamSubscription<RemoteMessage>? _messageSubscription;
+
+  String? _appInstanceId;
+  String? _fcmToken;
+  String? _error;
+  bool _isLoading = true;
+  bool _isRegistered = false;
+  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      var appInstanceId = preferences.getString('appInstanceId');
+
+      if (appInstanceId == null) {
+        appInstanceId = const Uuid().v4();
+        await preferences.setString('appInstanceId', appInstanceId);
+      }
+
+      if (mounted) {
+        setState(() => _appInstanceId = appInstanceId);
+      }
+
+      final permission = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (permission.authorizationStatus == AuthorizationStatus.denied) {
+        throw StateError('ไม่ได้รับอนุญาตให้ส่งการแจ้งเตือน');
+      }
+
+      final token = await _messaging.getToken();
+      if (token == null) {
+        throw StateError('ไม่สามารถรับ FCM token ได้');
+      }
+
+      if (mounted) {
+        setState(() => _fcmToken = token);
+      }
+
+      await _registerDevice(appInstanceId, token);
+
+      _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
+        try {
+          await _registerDevice(appInstanceId!, newToken);
+          if (mounted) {
+            setState(() {
+              _fcmToken = newToken;
+              _isRegistered = true;
+              _error = null;
+            });
+          }
+        } catch (error) {
+          if (mounted) {
+            setState(() => _error = error.toString());
+          }
+        }
+      });
+
+      _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+        if (!mounted) return;
+
+        final notification = message.notification;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              notification?.body ?? 'ได้รับการแจ้งเตือนจาก WatchMyPlace',
+            ),
+          ),
+        );
+      });
+
+      if (mounted) {
+        setState(() {
+          _isRegistered = true;
+          _isLoading = false;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = error.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _registerDevice(String appInstanceId, String token) {
+    return _backend.registerDevice(
+      appInstanceId: appInstanceId,
+      fcmToken: token,
+    );
+  }
+
+  Future<void> _sendTestNotification() async {
+    final appInstanceId = _appInstanceId;
+    if (appInstanceId == null || _isSending) return;
+
+    setState(() => _isSending = true);
+
+    try {
+      await _backend.sendTestNotification(appInstanceId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ส่งการแจ้งเตือนทดสอบแล้ว')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ส่งไม่สำเร็จ: $error')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _tokenSubscription?.cancel();
+    _messageSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Card(
+                elevation: 0,
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Icons.location_on_rounded,
+                        size: 58,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'WatchMyPlace',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'พร้อมเฝ้าสถานที่ของคุณ',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: const Color(0xFF557064)),
+                      ),
+                      const SizedBox(height: 28),
+                      if (_isLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else ...[
+                        _StatusRow(
+                          registered: _isRegistered,
+                          label: _isRegistered
+                              ? 'FCM token registered'
+                              : 'Not registered',
+                        ),
+                        const SizedBox(height: 18),
+                        _ValueBlock(
+                          label: 'appInstanceId',
+                          value: _appInstanceId ?? '-',
+                        ),
+                        const SizedBox(height: 14),
+                        _ValueBlock(
+                          label: 'FCM token',
+                          value: _fcmToken ?? '-',
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            _error!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: _isRegistered && !_isSending
+                              ? _sendTestNotification
+                              : null,
+                          icon: _isSending
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.notifications_active_outlined),
+                          label: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text('ทดสอบแจ้งเตือน'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.registered, required this.label});
+
+  final bool registered;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          registered ? Icons.check_circle : Icons.error_outline,
+          color: registered ? const Color(0xFF3B7D65) : Colors.orange,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label)),
+      ],
+    );
+  }
+}
+
+class _ValueBlock extends StatelessWidget {
+  const _ValueBlock({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF2F5F1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: SelectableText(
+            value,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
 }
