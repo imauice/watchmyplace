@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'services/backend_api.dart';
+import 'services/notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -53,6 +54,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final BackendApi _backend = BackendApi();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  final NotificationService _notifications = NotificationService();
 
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _messageSubscription;
@@ -72,6 +74,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initialize() async {
     try {
+      await _notifications.initialize();
+
       final preferences = await SharedPreferences.getInstance();
       var appInstanceId = preferences.getString('appInstanceId');
 
@@ -123,16 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
-        if (!mounted) return;
-
-        final notification = message.notification;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              notification?.body ?? 'ได้รับการแจ้งเตือนจาก WatchMyPlace',
-            ),
-          ),
-        );
+        _notifications.showRemoteMessage(message);
       });
 
       if (mounted) {
