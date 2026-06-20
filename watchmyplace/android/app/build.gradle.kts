@@ -37,6 +37,15 @@ android {
         versionName = flutter.versionName
         manifestPlaceholders["MAPS_API_KEY"] =
             localProperties.getProperty("MAPS_API_KEY", "")
+        buildConfigField(
+            "String",
+            "MAPS_API_KEY",
+            "\"${localProperties.getProperty("MAPS_API_KEY", "")}\"",
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -54,4 +63,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    implementation("com.google.android.libraries.places:places:4.3.1")
+    implementation("com.google.android.material:material:1.12.0")
 }

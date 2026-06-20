@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'app_pages.dart';
+import '../services/places_service.dart';
 
 class PinPlaceFlow extends StatefulWidget {
   const PinPlaceFlow({
@@ -29,6 +30,7 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
   LatLng _selectedPosition = const LatLng(18.7883, 98.9853);
   bool _locationGranted = false;
   String? _locationError;
+  String? _selectedAddress;
   final Set<String> _watchTopics = {
     'ฝนตกหนัก',
     'น้ำท่วม',
@@ -114,6 +116,7 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
         _selectedPosition = current;
         _locationGranted = true;
         _locationError = null;
+        _selectedAddress = null;
       });
       await _mapController?.animateCamera(
         CameraUpdate.newLatLngZoom(current, 15.5),
@@ -123,6 +126,17 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
         setState(() => _locationError = 'อ่านตำแหน่งไม่สำเร็จ');
       }
     }
+  }
+
+  Future<void> _selectPlace(PlaceSelection place) async {
+    setState(() {
+      _selectedPosition = place.position;
+      _selectedAddress = place.address;
+      _locationError = null;
+    });
+    await _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(place.position, 16),
+    );
   }
 
   @override
@@ -171,14 +185,19 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
                   _LocationStep(
                     radius: _radius,
                     selectedPosition: _selectedPosition,
+                    selectedAddress: _selectedAddress,
                     locationGranted: _locationGranted,
                     locationError: _locationError,
                     onMapCreated: (controller) {
                       _mapController = controller;
                     },
                     onPositionChanged: (position) {
-                      setState(() => _selectedPosition = position);
+                      setState(() {
+                        _selectedPosition = position;
+                        _selectedAddress = null;
+                      });
                     },
+                    onPlaceSelected: _selectPlace,
                     onMyLocation: _loadCurrentLocation,
                     onRadiusChanged: (value) {
                       setState(() => _radius = value);
@@ -557,20 +576,24 @@ class _LocationStep extends StatelessWidget {
   const _LocationStep({
     required this.radius,
     required this.selectedPosition,
+    required this.selectedAddress,
     required this.locationGranted,
     required this.locationError,
     required this.onMapCreated,
     required this.onPositionChanged,
+    required this.onPlaceSelected,
     required this.onMyLocation,
     required this.onRadiusChanged,
   });
 
   final double radius;
   final LatLng selectedPosition;
+  final String? selectedAddress;
   final bool locationGranted;
   final String? locationError;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<LatLng> onPositionChanged;
+  final ValueChanged<PlaceSelection> onPlaceSelected;
   final VoidCallback onMyLocation;
   final ValueChanged<double> onRadiusChanged;
 
@@ -615,27 +638,9 @@ class _LocationStep extends StatelessWidget {
           top: 12,
           left: 18,
           right: 18,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: const [
-                BoxShadow(color: Color(0x19000000), blurRadius: 12),
-              ],
-            ),
-            child: TextField(
-              readOnly: true,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                icon: const Icon(Icons.touch_app_outlined, color: muted),
-                hintText: 'แตะบนแผนที่เพื่อเลือกตำแหน่ง',
-                suffixIcon: IconButton(
-                  onPressed: onMyLocation,
-                  icon: const Icon(Icons.my_location_rounded, color: ink),
-                ),
-              ),
-            ),
+          child: _PlaceSearchBox(
+            onPlaceSelected: onPlaceSelected,
+            onMyLocation: onMyLocation,
           ),
         ),
         Positioned(
@@ -702,6 +707,7 @@ class _LocationStep extends StatelessWidget {
                           ),
                           Text(
                             locationError ??
+                                selectedAddress ??
                                 '${selectedPosition.latitude.toStringAsFixed(6)}, '
                                     '${selectedPosition.longitude.toStringAsFixed(6)}',
                             style: TextStyle(
@@ -724,6 +730,162 @@ class _LocationStep extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _PlaceSearchBox extends StatefulWidget {
+  const _PlaceSearchBox({
+    required this.onPlaceSelected,
+    required this.onMyLocation,
+  });
+
+  final ValueChanged<PlaceSelection> onPlaceSelected;
+  final VoidCallback onMyLocation;
+
+  @override
+  State<_PlaceSearchBox> createState() => _PlaceSearchBoxState();
+}
+
+class _PlaceSearchBoxState extends State<_PlaceSearchBox> {
+  final PlacesService _places = PlacesService();
+  final TextEditingController _controller = TextEditingController();
+  List<PlaceSuggestion> _suggestions = const [];
+  bool _loading = false;
+  int _requestId = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String query) async {
+    final requestId = ++_requestId;
+    if (query.trim().length < 2) {
+      setState(() => _suggestions = const []);
+      return;
+    }
+
+    setState(() => _loading = true);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (requestId != _requestId) return;
+
+    try {
+      final results = await _places.autocomplete(query);
+      if (mounted && requestId == _requestId) {
+        setState(() => _suggestions = results);
+      }
+    } catch (error) {
+      if (mounted && requestId == _requestId) {
+        setState(() => _suggestions = const []);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ค้นหาสถานที่ไม่สำเร็จ: $error')),
+        );
+      }
+    } finally {
+      if (mounted && requestId == _requestId) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _select(PlaceSuggestion suggestion) async {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _controller.text = suggestion.primaryText;
+      _suggestions = const [];
+      _loading = true;
+    });
+    try {
+      final place = await _places.getDetails(suggestion.placeId);
+      widget.onPlaceSelected(place);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เปิดสถานที่ไม่สำเร็จ: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.only(left: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(color: Color(0x19000000), blurRadius: 12),
+            ],
+          ),
+          child: TextField(
+            controller: _controller,
+            onChanged: _search,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              icon: const Icon(Icons.search, color: muted),
+              hintText: 'ค้นหาสถานที่หรือที่อยู่',
+              suffixIcon: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: widget.onMyLocation,
+                      icon: const Icon(Icons.my_location_rounded, color: ink),
+                    ),
+            ),
+          ),
+        ),
+        if (_suggestions.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 7),
+            constraints: const BoxConstraints(maxHeight: 230),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(color: Color(0x24000000), blurRadius: 16),
+              ],
+            ),
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              shrinkWrap: true,
+              itemCount: _suggestions.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final suggestion = _suggestions[index];
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.location_on_outlined, color: green),
+                  title: Text(
+                    suggestion.primaryText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: suggestion.secondaryText.isEmpty
+                      ? null
+                      : Text(
+                          suggestion.secondaryText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                  onTap: () => _select(suggestion),
+                );
+              },
+            ),
+          ),
       ],
     );
   }
