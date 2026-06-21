@@ -1,20 +1,127 @@
 # WatchMyPlace
 
-> Pin it. Forget it. We'll watch it.  
+> Pin it. We'll watch it.  
 > ปักหมุดไว้ ที่เหลือเราจะเฝ้าให้
 
-Privacy-first mobile app MVP for anonymous device registration and Firebase
-Cloud Messaging test notifications.
+## Overview
 
-## Project structure
+WatchMyPlace is a place-first risk awareness platform.
 
-- `backend/` — Node.js, Express, MongoDB, Firebase Admin
-- `app/` — Flutter, Firebase Messaging
+Users pin places they care about:
 
-Setup instructions are in each folder:
+- 🏠 Home
+- 🏫 School
+- 🏢 Office
+- 🏥 Hospital
+- 🏪 Shop
 
-- [Backend setup](backend/README.md)
-- [Flutter setup](app/README.md)
+The platform continuously collects observations from public data, sensors and
+community feedback, discovers patterns, predicts possible impacts and sends
+meaningful notifications.
 
-This MVP intentionally does not include maps, places, AI, vector search,
-accounts, personal data, or volunteer features.
+---
+
+## Core Philosophy
+
+Collect Facts
+
+↓
+
+Discover Patterns
+
+↓
+
+Predict Impacts
+
+---
+
+## Design Principles
+
+- Place First
+- Observation First
+- Community Powered
+- Explainable Decisions
+- Data before AI
+- Simple before Smart
+
+---
+
+## Architecture
+
+External Sources
+
+- Open-Meteo
+- Water APIs
+- Government Data
+- Sensors
+- Community Feedback
+- Historical Imports
+
+↓
+
+Observation Store
+
+↓
+
+Pattern Mining
+
+↓
+
+Impact Prediction
+
+↓
+
+Watch Places
+
+↓
+
+Notification
+
+---
+
+## Repository Guide
+
+| File | Purpose |
+|------|---------|
+| [VISION.md](VISION.md) | Product vision and philosophy |
+| [ROADMAP.md](ROADMAP.md) | Long-term implementation roadmap |
+| [TASK.md](TASK.md) | Current sprint tasks |
+| [AGENTS.md](AGENTS.md) | Instructions for AI agents and Codex |
+
+---
+
+## MVP
+
+- Pin places
+- Collect Open-Meteo observations
+- Store observations
+- Generate simple impacts
+- Match watch places
+- Send notifications
+- Collect community feedback
+
+---
+
+## Long-term Goal
+
+Build a community-powered, observation-driven risk intelligence platform that
+becomes more accurate over time by learning from:
+
+- Public data
+- Sensors
+- Community observations
+- Historical outcomes
+
+---
+
+## Project Motto
+
+We do not try to model the world.
+
+We collect observations.
+
+We discover patterns.
+
+We predict impacts.
+
+So people can spend less time worrying and more time living.
