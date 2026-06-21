@@ -43,6 +43,52 @@ class BackendApi {
     _throwIfFailed(response);
   }
 
+  Future<void> createWatchPlace({
+    required String appInstanceId,
+    required String name,
+    required String placeType,
+    required double latitude,
+    required double longitude,
+    required double radiusMeters,
+    required List<String> domains,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$_baseUrl/v1/watch-places'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'appInstanceId': appInstanceId,
+            'name': name,
+            'placeType': placeType,
+            'location': {
+              'type': 'Point',
+              'coordinates': [longitude, latitude],
+            },
+            'radiusMeters': radiusMeters,
+            'domains': domains,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _throwIfFailed(response);
+  }
+
+  Future<bool> hasWatchPlaces(String appInstanceId) async {
+    final response = await http
+        .get(
+          Uri.parse(
+            '$_baseUrl/v1/watch-places'
+            '?appInstanceId=${Uri.encodeQueryComponent(appInstanceId)}',
+          ),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    _throwIfFailed(response);
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final places = body['places'] as List<dynamic>? ?? const [];
+    return places.isNotEmpty;
+  }
+
   void _throwIfFailed(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
 

@@ -13,7 +13,7 @@ class PinPlaceFlow extends StatefulWidget {
   });
 
   final VoidCallback onCancel;
-  final VoidCallback onSaved;
+  final Future<void> Function(PinnedPlaceDraft place) onSaved;
 
   @override
   State<PinPlaceFlow> createState() => _PinPlaceFlowState();
@@ -31,6 +31,7 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
   bool _locationGranted = false;
   String? _locationError;
   String? _selectedAddress;
+  bool _isSaving = false;
   final Set<String> _watchTopics = {
     'ฝนตกหนัก',
     'น้ำท่วม',
@@ -84,7 +85,33 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
     if (_step < 2) {
       setState(() => _step++);
     } else {
-      widget.onSaved();
+      _save();
+    }
+  }
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      final type = _types[_selectedType];
+      await widget.onSaved(
+        PinnedPlaceDraft(
+          name: _nameController.text.trim(),
+          placeType: type.$2,
+          latitude: _selectedPosition.latitude,
+          longitude: _selectedPosition.longitude,
+          radiusMeters: _radius,
+          domains: const ['weather'],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('บันทึกสถานที่ไม่สำเร็จ: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -158,7 +185,7 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: _step == 2 ? widget.onSaved : null,
+            onPressed: _step == 2 && !_isSaving ? _save : null,
             child: const Text('บันทึก'),
           ),
         ],
@@ -219,7 +246,7 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
               child: FilledButton(
-                onPressed: _next,
+                onPressed: _isSaving ? null : _next,
                 style: FilledButton.styleFrom(
                   backgroundColor: green,
                   minimumSize: const Size.fromHeight(52),
@@ -231,7 +258,11 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _step == 2 ? 'บันทึกสถานที่' : 'ต่อไป',
+                      _isSaving
+                          ? 'กำลังบันทึก...'
+                          : _step == 2
+                          ? 'บันทึกสถานที่'
+                          : 'ต่อไป',
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -315,6 +346,24 @@ class _PinPlaceFlowState extends State<PinPlaceFlow> {
       },
     );
   }
+}
+
+class PinnedPlaceDraft {
+  const PinnedPlaceDraft({
+    required this.name,
+    required this.placeType,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+    required this.domains,
+  });
+
+  final String name;
+  final String placeType;
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+  final List<String> domains;
 }
 
 class _StepHeader extends StatelessWidget {

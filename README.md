@@ -88,6 +88,11 @@ Notification
 | [TASK.md](TASK.md) | Current sprint tasks |
 | [AGENTS.md](AGENTS.md) | Instructions for AI agents and Codex |
 
+Project folders:
+
+- [`backend/`](backend/README.md) — Express, MongoDB, Open-Meteo workers and FCM
+- `watchmyplace/` — Flutter Android application
+
 ---
 
 ## MVP

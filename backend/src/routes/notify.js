@@ -1,6 +1,6 @@
 const express = require('express');
-const admin = require('firebase-admin');
 const AppDevice = require('../models/AppDevice');
+const { sendToToken } = require('../services/firebaseMessaging.service');
 
 const router = express.Router();
 
@@ -17,18 +17,10 @@ router.post('/test', async (req, res, next) => {
       return res.status(404).json({ error: 'Device not found' });
     }
 
-    const messageId = await admin.messaging().send({
+    const messageId = await sendToToken({
       token: device.fcmToken,
-      notification: {
-        title: 'WatchMyPlace',
-        body: 'ระบบพร้อมเฝ้าสถานที่ของคุณแล้ว',
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          channelId: 'watchmyplace_notifications',
-        },
-      },
+      title: 'WatchMyPlace',
+      body: 'ระบบพร้อมเฝ้าสถานที่ของคุณแล้ว',
     });
 
     return res.json({ sent: true, messageId });
@@ -38,4 +30,3 @@ router.post('/test', async (req, res, next) => {
 });
 
 module.exports = router;
-

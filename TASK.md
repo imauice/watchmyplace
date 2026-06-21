@@ -18,10 +18,10 @@ User pins a place
 
 ## TASK-001 Observation Model
 
-- [ ] Create `observations` collection
-- [ ] Add 2dsphere index
-- [ ] Add timestamp index
-- [ ] Create Observation interface/model
+- [x] Create `observations` collection
+- [x] Add 2dsphere index
+- [x] Add timestamp index
+- [x] Create Observation interface/model
 
 Deliverable:  
 Observation CRUD ready.
@@ -30,9 +30,9 @@ Observation CRUD ready.
 
 ## TASK-002 Watch Places
 
-- [ ] Create `watch_places` collection
-- [ ] Create API
-- [ ] Add radius/domain support
+- [x] Create `watch_places` collection
+- [x] Create API
+- [x] Add radius/domain support
 
 Deliverable:  
 User can pin places.
@@ -41,11 +41,11 @@ User can pin places.
 
 ## TASK-003 Open-Meteo Worker
 
-- [ ] Read active watch places
-- [ ] Group nearby locations
-- [ ] Fetch forecast
-- [ ] Normalize to Observation
-- [ ] Save Observation
+- [x] Read active watch places
+- [x] Group nearby locations
+- [x] Fetch forecast
+- [x] Normalize to Observation
+- [x] Save Observation
 
 Deliverable:  
 Weather observations stored automatically.
@@ -54,9 +54,9 @@ Weather observations stored automatically.
 
 ## TASK-004 Observation Search
 
-- [ ] Nearby search
-- [ ] Time window search
-- [ ] Filter by type/source
+- [x] Nearby search
+- [x] Time window search
+- [x] Filter by type/source
 
 API:
 
@@ -83,15 +83,15 @@ Create Impact
 ```
 
 Deliverable:  
-Impact records created.
+Impact records created. ✅
 
 ---
 
 ## TASK-006 Place Matcher
 
-- [ ] Match impacts with `watch_places`
-- [ ] Respect enabled domains
-- [ ] Respect cooldown
+- [x] Match impacts with `watch_places`
+- [x] Respect enabled domains
+- [x] Respect cooldown
 
 Deliverable:  
 Affected places identified.
@@ -100,10 +100,10 @@ Affected places identified.
 
 ## TASK-007 Notification Worker
 
-- [ ] Push notification
-- [ ] Log notification
-- [ ] Deduplicate
-- [ ] Cooldown
+- [x] Push notification
+- [x] Log notification
+- [x] Deduplicate
+- [x] Cooldown
 
 Deliverable:  
 End-to-end notification works.

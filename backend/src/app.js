@@ -1,6 +1,8 @@
 const express = require('express');
 const devicesRouter = require('./routes/devices');
 const notifyRouter = require('./routes/notify');
+const observationsRouter = require('./routes/observations');
+const watchPlacesRouter = require('./routes/watchPlaces');
 
 function createApp() {
   const app = express();
@@ -13,6 +15,8 @@ function createApp() {
 
   app.use('/devices', devicesRouter);
   app.use('/notify', notifyRouter);
+  app.use('/v1/observations', observationsRouter);
+  app.use('/v1/watch-places', watchPlacesRouter);
 
   app.use((error, _req, res, _next) => {
     console.error(error);
@@ -23,4 +27,3 @@ function createApp() {
 }
 
 module.exports = { createApp };
-

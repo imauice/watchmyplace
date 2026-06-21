@@ -106,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _fcmToken = token);
 
       await _registerDevice(appInstanceId, token);
+      final hasWatchPlaces = await _backend.hasWatchPlaces(appInstanceId);
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         try {
           await _registerDevice(appInstanceId!, newToken);
@@ -127,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isRegistered = true;
+          _showPinnedPlaces = hasWatchPlaces;
           _isLoading = false;
           _error = null;
         });
@@ -187,7 +189,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isPinningPlace) {
       return PinPlaceFlow(
         onCancel: () => setState(() => _isPinningPlace = false),
-        onSaved: () {
+        onSaved: (place) async {
+          final appInstanceId = _appInstanceId;
+          if (appInstanceId == null) {
+            throw StateError('ยังไม่พร้อมบันทึกสถานที่');
+          }
+          await _backend.createWatchPlace(
+            appInstanceId: appInstanceId,
+            name: place.name,
+            placeType: place.placeType,
+            latitude: place.latitude,
+            longitude: place.longitude,
+            radiusMeters: place.radiusMeters,
+            domains: place.domains,
+          );
+          if (!mounted) return;
           setState(() {
             _isPinningPlace = false;
             _showPinnedPlaces = true;

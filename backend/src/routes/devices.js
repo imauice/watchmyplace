@@ -27,7 +27,7 @@ router.post('/register', async (req, res, next) => {
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       },
     );
@@ -47,4 +47,3 @@ router.post('/register', async (req, res, next) => {
 });
 
 module.exports = router;
-
