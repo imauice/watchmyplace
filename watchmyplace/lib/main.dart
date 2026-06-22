@@ -71,8 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   bool _isRegistered = false;
   bool _isSending = false;
-  bool _showPinnedPlaces = false;
+  bool _isLoadingPlaces = false;
   bool _isPinningPlace = false;
+  List<WatchPlace> _watchPlaces = const [];
 
   @override
   void initState() {
@@ -106,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _fcmToken = token);
 
       await _registerDevice(appInstanceId, token);
-      final hasWatchPlaces = await _backend.hasWatchPlaces(appInstanceId);
+      final watchPlaces = await _backend.getWatchPlaces(appInstanceId);
       _tokenSubscription = _messaging.onTokenRefresh.listen((newToken) async {
         try {
           await _registerDevice(appInstanceId!, newToken);
@@ -128,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isRegistered = true;
-          _showPinnedPlaces = hasWatchPlaces;
+          _watchPlaces = watchPlaces;
           _isLoading = false;
           _error = null;
         });
@@ -171,6 +172,24 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadWatchPlaces() async {
+    final appInstanceId = _appInstanceId;
+    if (appInstanceId == null || _isLoadingPlaces) return;
+    setState(() => _isLoadingPlaces = true);
+    try {
+      final places = await _backend.getWatchPlaces(appInstanceId);
+      if (mounted) setState(() => _watchPlaces = places);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('โหลดสถานที่ไม่สำเร็จ: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingPlaces = false);
+    }
+  }
+
   void _comingSoon(String message) {
     ScaffoldMessenger.of(
       context,
@@ -203,10 +222,11 @@ class _HomeScreenState extends State<HomeScreen> {
             radiusMeters: place.radiusMeters,
             domains: place.domains,
           );
+          final places = await _backend.getWatchPlaces(appInstanceId);
           if (!mounted) return;
           setState(() {
             _isPinningPlace = false;
-            _showPinnedPlaces = true;
+            _watchPlaces = places;
           });
         },
       );
@@ -215,7 +235,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final pages = [
       PlacesPage(
         isReady: _isRegistered,
-        hasPinnedPlaces: _showPinnedPlaces,
+        places: _watchPlaces,
+        isLoadingPlaces: _isLoadingPlaces,
+        onRefresh: _loadWatchPlaces,
         onOpenAlerts: () => setState(() => _selectedIndex = 1),
         onOpenSettings: () => setState(() => _selectedIndex = 2),
         onAddPlace: () => setState(() => _isPinningPlace = true),

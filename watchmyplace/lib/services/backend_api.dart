@@ -73,7 +73,7 @@ class BackendApi {
     _throwIfFailed(response);
   }
 
-  Future<bool> hasWatchPlaces(String appInstanceId) async {
+  Future<List<WatchPlace>> getWatchPlaces(String appInstanceId) async {
     final response = await http
         .get(
           Uri.parse(
@@ -86,7 +86,9 @@ class BackendApi {
     _throwIfFailed(response);
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final places = body['places'] as List<dynamic>? ?? const [];
-    return places.isNotEmpty;
+    return places
+        .map((item) => WatchPlace.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
   }
 
   void _throwIfFailed(http.Response response) {
@@ -102,6 +104,48 @@ class BackendApi {
 
     throw BackendException(message);
   }
+}
+
+class WatchPlace {
+  const WatchPlace({
+    required this.id,
+    required this.name,
+    required this.placeType,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+    required this.domains,
+    required this.updatedAt,
+  });
+
+  factory WatchPlace.fromJson(Map<String, dynamic> json) {
+    final location = json['location'] as Map<String, dynamic>? ?? const {};
+    final coordinates = location['coordinates'] as List<dynamic>? ?? const [];
+
+    return WatchPlace(
+      id: json['_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'สถานที่',
+      placeType: json['placeType']?.toString() ?? 'other',
+      longitude: coordinates.isNotEmpty
+          ? (coordinates[0] as num).toDouble()
+          : 0,
+      latitude: coordinates.length > 1 ? (coordinates[1] as num).toDouble() : 0,
+      radiusMeters: (json['radiusMeters'] as num?)?.toDouble() ?? 500,
+      domains: (json['domains'] as List<dynamic>? ?? const [])
+          .map((domain) => domain.toString())
+          .toList(growable: false),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
+    );
+  }
+
+  final String id;
+  final String name;
+  final String placeType;
+  final double latitude;
+  final double longitude;
+  final double radiusMeters;
+  final List<String> domains;
+  final DateTime? updatedAt;
 }
 
 class BackendException implements Exception {

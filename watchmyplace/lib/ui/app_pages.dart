@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/backend_api.dart';
+
 const ink = Color(0xFF102D2B);
 const green = Color(0xFF08745F);
 const brightGreen = Color(0xFF2EAC54);
@@ -43,7 +45,9 @@ class PlacesPage extends StatelessWidget {
   const PlacesPage({
     super.key,
     required this.isReady,
-    required this.hasPinnedPlaces,
+    required this.places,
+    required this.isLoadingPlaces,
+    required this.onRefresh,
     required this.onOpenAlerts,
     required this.onOpenSettings,
     required this.onAddPlace,
@@ -51,7 +55,9 @@ class PlacesPage extends StatelessWidget {
   });
 
   final bool isReady;
-  final bool hasPinnedPlaces;
+  final List<WatchPlace> places;
+  final bool isLoadingPlaces;
+  final Future<void> Function() onRefresh;
   final VoidCallback onOpenAlerts;
   final VoidCallback onOpenSettings;
   final VoidCallback onAddPlace;
@@ -59,13 +65,13 @@ class PlacesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (hasPinnedPlaces) {
+    if (places.isNotEmpty || isLoadingPlaces) {
       return SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
             children: [
               _HomeHeader(
                 onOpenAlerts: onOpenAlerts,
@@ -74,7 +80,13 @@ class PlacesPage extends StatelessWidget {
               const SizedBox(height: 15),
               _ReadyBanner(isReady: isReady),
               const SizedBox(height: 22),
-              _PinnedPlacesSection(onAddPlace: onAddPlace),
+              if (isLoadingPlaces && places.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                _PinnedPlacesSection(places: places, onAddPlace: onAddPlace),
             ],
           ),
         ),
@@ -167,21 +179,37 @@ class _HomeHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                'WatchMyPlace',
-                style: Theme.of(
-                  context,
-                ).textTheme.headlineLarge?.copyWith(fontSize: 29),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  'assets/branding/app_icon.png',
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                ),
               ),
-              const SizedBox(height: 1),
-              Text(
-                'ปักหมุดไว้ ที่เหลือเราจะเฝ้าให้',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontSize: 14),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'WatchMyPlace',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineLarge?.copyWith(fontSize: 27),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'ปักหมุดไว้ ที่เหลือเราจะเฝ้าให้',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -467,8 +495,9 @@ class _PopularPlacesCard extends StatelessWidget {
 }
 
 class _PinnedPlacesSection extends StatelessWidget {
-  const _PinnedPlacesSection({required this.onAddPlace});
+  const _PinnedPlacesSection({required this.places, required this.onAddPlace});
 
+  final List<WatchPlace> places;
   final VoidCallback onAddPlace;
 
   @override
@@ -505,28 +534,10 @@ class _PinnedPlacesSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const _PlaceCard(
-          name: 'โรงเรียนสาริต',
-          location: 'อ.เมืองเชียงใหม่',
-          imageAsset: 'assets/images/places/school.png',
-          updatedAt: '08:30',
+        ...places.expand(
+          (place) => [_PlaceCard(place: place), const SizedBox(height: 12)],
         ),
-        const SizedBox(height: 12),
-        const _PlaceCard(
-          name: 'บ้าน',
-          location: 'อ.เมืองเชียงใหม่',
-          imageAsset: 'assets/images/places/home.png',
-          updatedAt: '07:45',
-        ),
-        const SizedBox(height: 12),
-        const _PlaceCard(
-          name: 'ที่ทำงาน',
-          location: 'อ.เมืองเชียงใหม่',
-          imageAsset: 'assets/images/places/office.png',
-          updatedAt: '06:50',
-          warning: 'ฝนตกหนักในพื้นที่ใกล้เคียง',
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 2),
         OutlinedButton.icon(
           onPressed: onAddPlace,
           style: OutlinedButton.styleFrom(
@@ -563,23 +574,14 @@ class _PinnedPlacesSection extends StatelessWidget {
 }
 
 class _PlaceCard extends StatelessWidget {
-  const _PlaceCard({
-    required this.name,
-    required this.location,
-    required this.imageAsset,
-    required this.updatedAt,
-    this.warning,
-  });
+  const _PlaceCard({required this.place});
 
-  final String name;
-  final String location;
-  final String imageAsset;
-  final String updatedAt;
-  final String? warning;
+  final WatchPlace place;
 
   @override
   Widget build(BuildContext context) {
-    final hasWarning = warning != null;
+    final imageAsset = _imageForPlaceType(place.placeType);
+    final updatedAt = place.updatedAt?.toLocal();
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 14, 14, 13),
       decoration: BoxDecoration(
@@ -601,7 +603,7 @@ class _PlaceCard extends StatelessWidget {
             Container(
               width: 4,
               decoration: BoxDecoration(
-                color: hasWarning ? Colors.orange : brightGreen,
+                color: brightGreen,
                 borderRadius: const BorderRadius.horizontal(
                   right: Radius.circular(4),
                 ),
@@ -626,7 +628,7 @@ class _PlaceCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          name,
+                          place.name,
                           style: const TextStyle(
                             color: ink,
                             fontSize: 20,
@@ -634,7 +636,7 @@ class _PlaceCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      _StatusPill(warning: hasWarning),
+                      const _StatusPill(warning: false),
                       const SizedBox(width: 4),
                       const Icon(Icons.chevron_right_rounded, color: muted),
                     ],
@@ -649,7 +651,8 @@ class _PlaceCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(
-                          location,
+                          '${place.latitude.toStringAsFixed(4)}, '
+                          '${place.longitude.toStringAsFixed(4)}',
                           style: const TextStyle(color: muted, fontSize: 13),
                         ),
                       ),
@@ -666,36 +669,18 @@ class _PlaceCard extends StatelessWidget {
                     ],
                   ),
                   const Spacer(),
-                  if (hasWarning)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF5DF),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        warning!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB87900),
-                          fontSize: 11,
-                        ),
-                      ),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'อัปเดตล่าสุด $updatedAt',
-                        style: const TextStyle(color: muted, fontSize: 11),
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      updatedAt == null
+                          ? 'รัศมี ${place.radiusMeters.round()} เมตร'
+                          : 'อัปเดตล่าสุด '
+                                '${updatedAt.hour.toString().padLeft(2, '0')}:'
+                                '${updatedAt.minute.toString().padLeft(2, '0')}'
+                                ' · รัศมี ${place.radiusMeters.round()} เมตร',
+                      style: const TextStyle(color: muted, fontSize: 11),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -704,6 +689,31 @@ class _PlaceCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _imageForPlaceType(String placeType) {
+  const available = {
+    'school',
+    'home',
+    'office',
+    'market',
+    'mall',
+    'convenience',
+    'hospital',
+    'temple',
+    'park',
+    'factory',
+    'gas',
+    'warehouse',
+    'hotel',
+    'restaurant',
+    'cafe',
+    'beach',
+    'stadium',
+    'airport',
+  };
+  final type = available.contains(placeType) ? placeType : 'home';
+  return 'assets/images/place_types/$type.png';
 }
 
 class _StatusPill extends StatelessWidget {
