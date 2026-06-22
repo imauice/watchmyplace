@@ -190,6 +190,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _deleteWatchPlace(WatchPlace place) async {
+    final appInstanceId = _appInstanceId;
+    if (appInstanceId == null) {
+      throw StateError('ยังไม่พร้อมลบสถานที่');
+    }
+
+    await _backend.deleteWatchPlace(
+      appInstanceId: appInstanceId,
+      placeId: place.id,
+    );
+    final places = await _backend.getWatchPlaces(appInstanceId);
+    if (mounted) setState(() => _watchPlaces = places);
+  }
+
   void _comingSoon(String message) {
     ScaffoldMessenger.of(
       context,
@@ -238,6 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
         places: _watchPlaces,
         isLoadingPlaces: _isLoadingPlaces,
         onRefresh: _loadWatchPlaces,
+        onDeletePlace: _deleteWatchPlace,
         onOpenAlerts: () => setState(() => _selectedIndex = 1),
         onOpenSettings: () => setState(() => _selectedIndex = 2),
         onAddPlace: () => setState(() => _isPinningPlace = true),

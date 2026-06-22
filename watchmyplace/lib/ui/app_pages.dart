@@ -48,6 +48,7 @@ class PlacesPage extends StatelessWidget {
     required this.places,
     required this.isLoadingPlaces,
     required this.onRefresh,
+    required this.onDeletePlace,
     required this.onOpenAlerts,
     required this.onOpenSettings,
     required this.onAddPlace,
@@ -58,6 +59,7 @@ class PlacesPage extends StatelessWidget {
   final List<WatchPlace> places;
   final bool isLoadingPlaces;
   final Future<void> Function() onRefresh;
+  final Future<void> Function(WatchPlace place) onDeletePlace;
   final VoidCallback onOpenAlerts;
   final VoidCallback onOpenSettings;
   final VoidCallback onAddPlace;
@@ -86,7 +88,11 @@ class PlacesPage extends StatelessWidget {
                   child: Center(child: CircularProgressIndicator()),
                 )
               else
-                _PinnedPlacesSection(places: places, onAddPlace: onAddPlace),
+                _PinnedPlacesSection(
+                  places: places,
+                  onAddPlace: onAddPlace,
+                  onDeletePlace: onDeletePlace,
+                ),
             ],
           ),
         ),
@@ -494,11 +500,24 @@ class _PopularPlacesCard extends StatelessWidget {
   }
 }
 
-class _PinnedPlacesSection extends StatelessWidget {
-  const _PinnedPlacesSection({required this.places, required this.onAddPlace});
+class _PinnedPlacesSection extends StatefulWidget {
+  const _PinnedPlacesSection({
+    required this.places,
+    required this.onAddPlace,
+    required this.onDeletePlace,
+  });
 
   final List<WatchPlace> places;
   final VoidCallback onAddPlace;
+  final Future<void> Function(WatchPlace place) onDeletePlace;
+
+  @override
+  State<_PinnedPlacesSection> createState() => _PinnedPlacesSectionState();
+}
+
+class _PinnedPlacesSectionState extends State<_PinnedPlacesSection> {
+  bool _isManaging = false;
+  String? _deletingPlaceId;
 
   @override
   Widget build(BuildContext context) {
@@ -516,7 +535,9 @@ class _PinnedPlacesSection extends StatelessWidget {
               ),
             ),
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                setState(() => _isManaging = !_isManaging);
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: muted,
                 padding: const EdgeInsets.symmetric(
@@ -528,18 +549,29 @@ class _PinnedPlacesSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
-              icon: const Icon(Icons.tune_rounded, size: 18),
-              label: const Text('จัดการ'),
+              icon: Icon(
+                _isManaging ? Icons.close_rounded : Icons.tune_rounded,
+                size: 18,
+              ),
+              label: Text(_isManaging ? 'เสร็จสิ้น' : 'จัดการ'),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        ...places.expand(
-          (place) => [_PlaceCard(place: place), const SizedBox(height: 12)],
+        ...widget.places.expand(
+          (place) => [
+            _PlaceCard(
+              place: place,
+              isManaging: _isManaging,
+              isDeleting: _deletingPlaceId == place.id,
+              onDelete: () => _confirmDelete(place),
+            ),
+            const SizedBox(height: 12),
+          ],
         ),
         const SizedBox(height: 2),
         OutlinedButton.icon(
-          onPressed: onAddPlace,
+          onPressed: widget.onAddPlace,
           style: OutlinedButton.styleFrom(
             foregroundColor: ink,
             minimumSize: const Size.fromHeight(62),
@@ -571,12 +603,64 @@ class _PinnedPlacesSection extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _confirmDelete(WatchPlace place) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('ลบสถานที่นี้?'),
+          content: Text(
+            'ต้องการลบ “${place.name}” ออกจากสถานที่ที่เฝ้าระวังหรือไม่',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('ลบสถานที่'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingPlaceId = place.id);
+    try {
+      await widget.onDeletePlace(place);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ลบ ${place.name} แล้ว')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ลบสถานที่ไม่สำเร็จ: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _deletingPlaceId = null);
+    }
+  }
 }
 
 class _PlaceCard extends StatelessWidget {
-  const _PlaceCard({required this.place});
+  const _PlaceCard({
+    required this.place,
+    required this.isManaging,
+    required this.isDeleting,
+    required this.onDelete,
+  });
 
   final WatchPlace place;
+  final bool isManaging;
+  final bool isDeleting;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -636,7 +720,25 @@ class _PlaceCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const _StatusPill(warning: false),
+                      if (isManaging)
+                        IconButton(
+                          tooltip: 'ลบสถานที่',
+                          onPressed: isDeleting ? null : onDelete,
+                          visualDensity: VisualDensity.compact,
+                          icon: isDeleting
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: Colors.red,
+                                ),
+                        )
+                      else
+                        const _StatusPill(warning: false),
                       const SizedBox(width: 4),
                       const Icon(Icons.chevron_right_rounded, color: muted),
                     ],

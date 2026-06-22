@@ -27,7 +27,6 @@ class BackendApi {
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     _throwIfFailed(response);
   }
 
@@ -39,7 +38,6 @@ class BackendApi {
           body: jsonEncode({'appInstanceId': appInstanceId}),
         )
         .timeout(const Duration(seconds: 15));
-
     _throwIfFailed(response);
   }
 
@@ -69,7 +67,6 @@ class BackendApi {
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     _throwIfFailed(response);
   }
 
@@ -82,13 +79,28 @@ class BackendApi {
           ),
         )
         .timeout(const Duration(seconds: 15));
-
     _throwIfFailed(response);
+
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final places = body['places'] as List<dynamic>? ?? const [];
     return places
         .map((item) => WatchPlace.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
+  }
+
+  Future<void> deleteWatchPlace({
+    required String appInstanceId,
+    required String placeId,
+  }) async {
+    final response = await http
+        .delete(
+          Uri.parse(
+            '$_baseUrl/v1/watch-places/$placeId'
+            '?appInstanceId=${Uri.encodeQueryComponent(appInstanceId)}',
+          ),
+        )
+        .timeout(const Duration(seconds: 15));
+    _throwIfFailed(response);
   }
 
   void _throwIfFailed(http.Response response) {
@@ -101,7 +113,6 @@ class BackendApi {
     } on FormatException {
       // Keep the status-based fallback message.
     }
-
     throw BackendException(message);
   }
 }
