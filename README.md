@@ -87,10 +87,11 @@ Notification
 | [ROADMAP.md](ROADMAP.md) | Long-term implementation roadmap |
 | [TASK.md](TASK.md) | Current sprint tasks |
 | [AGENTS.md](AGENTS.md) | Instructions for AI agents and Codex |
+| [backend/docs/nestjs-ormf-migration-plan.md](backend/docs/nestjs-ormf-migration-plan.md) | NestJS + ORMF v1 migration plan |
 
 Project folders:
 
-- [`backend/`](backend/README.md) — Express, MongoDB, Open-Meteo workers and FCM
+- [`backend/`](backend/README.md) — Express now; planned migration to NestJS + TypeScript
 - `watchmyplace/` — Flutter Android application
 
 ---

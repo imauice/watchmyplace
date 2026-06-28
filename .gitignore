@@ -1,6 +1,8 @@
 # Environment and secrets
 backend/.env
 backend/service-account.json
+backend-nest/.env
+backend-nest/service-account.json
 app/android/app/google-services.json
 app/ios/Runner/GoogleService-Info.plist
 watchmyplace/android/app/google-services.json
@@ -9,6 +11,10 @@ watchmyplace/ios/Runner/GoogleService-Info.plist
 # Node
 backend/node_modules/
 backend/npm-debug.log*
+backend-nest/node_modules/
+backend-nest/dist/
+backend-nest/npm-debug.log*
+backend-nest/runtime*.log
 
 # Flutter / Dart
 watchmyplace/.dart_tool/
